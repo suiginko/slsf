@@ -299,13 +299,12 @@ export const HexBoard: React.FC<HexBoardProps> = ({
   return (
     <div id="hex-board-container" className="relative w-full flex flex-col items-center select-none">
       {/* Main SVG Board */}
-      <div className="relative w-full overflow-x-auto overflow-y-hidden flex justify-center py-1">
+      <div className="relative w-full max-w-full overflow-hidden flex justify-center py-1 px-1">
         <svg
           ref={svgRef}
           id="honeycomb-svg"
           viewBox="0 0 920 580"
-          className="w-full h-auto max-h-[570px] touch-none"
-          style={{ minWidth: '600px' }}
+          className="w-full h-auto max-h-[570px] touch-none max-w-[920px] drop-shadow-xs"
         >
           {/* Render All Hex Cells */}
           {Array.from(cellPositions.values()).map(({ cx, cy, cell }) => {

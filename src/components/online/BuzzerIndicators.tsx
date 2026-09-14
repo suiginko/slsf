@@ -14,12 +14,12 @@ export const BuzzerIndicators: React.FC<BuzzerIndicatorsProps> = ({
   activeCol,
 }) => {
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs">
       {/* 红方行抢答灯 (Row 0 ~ 4) */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 font-bold text-[#d81c2f]">
+      <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-2">
+        <div className="flex items-center gap-1 font-bold text-[#d81c2f] shrink-0 text-[11px] sm:text-xs">
           <Zap className="w-3.5 h-3.5 fill-current" />
-          <span>红方抢答机会 (按行):</span>
+          <span>红方抢答 (行):</span>
         </div>
         <div className="flex items-center gap-1.5">
           {buzzerQuotas.redRowQuotas.map((available, idx) => {
@@ -44,10 +44,10 @@ export const BuzzerIndicators: React.FC<BuzzerIndicatorsProps> = ({
       </div>
 
       {/* 绿方列抢答灯 (Col 0 ~ 4) */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 font-bold text-[#37b484]">
+      <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-2">
+        <div className="flex items-center gap-1 font-bold text-[#37b484] shrink-0 text-[11px] sm:text-xs">
           <Zap className="w-3.5 h-3.5 fill-current" />
-          <span>绿方抢答机会 (按列):</span>
+          <span>绿方抢答 (列):</span>
         </div>
         <div className="flex items-center gap-1.5">
           {buzzerQuotas.greenColQuotas.map((available, idx) => {

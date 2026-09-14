@@ -119,6 +119,23 @@ export const RoleActionPanel: React.FC<RoleActionPanelProps> = ({
     }
   }, [isGuesser, activeCell, myTeam, roomState.answeringTeam, roomState.isProtected, roomState.buzzerQuotas]);
 
+  // 0. 大厅等待/预览阶段
+  if (roomState.phase === 'LOBBY') {
+    return (
+      <div className="w-full bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col items-center justify-center text-center space-y-3">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 text-blue-600 flex items-center justify-center shadow-xs">
+          <Sparkles className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-slate-800">当前处于盘面预览模式</h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm leading-relaxed">
+            您可以随时查看当前 5×5 蜂巢棋盘与双方行/列抢答指示灯。点击上方【席位/房间】可调整席位，或直接点击【自由测试/开局】体验全流程对战！
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // 1. 选题阶段提示
   if (roomState.phase === 'SELECTING_CELL') {
     return (

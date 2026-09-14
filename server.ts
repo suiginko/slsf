@@ -39,7 +39,12 @@ app.post("/api/generate-words", async (req, res) => {
     const { topic = "中国传统文化与现代科技", count = 25, apiKey: clientApiKey, provider: clientProvider } = req.body;
     
     // 优先级：请求体传入Key > 环境变量
-    const zhipuKey = clientProvider === 'zhipu' ? clientApiKey : (process.env.ZHIPU_API_KEY || (clientApiKey && clientApiKey.includes('.') ? clientApiKey : ''));
+    const zhipuKey =
+      clientProvider === "zhipu" && clientApiKey
+        ? clientApiKey
+        : process.env.ZHIPU_API_KEY ||
+          (clientApiKey && clientApiKey.includes(".") ? clientApiKey : "");
+    const zhipuModel = process.env.ZHIPU_MODEL || "glm-4.7-flash";
     const siliconKey = clientProvider === 'siliconflow' ? clientApiKey : (process.env.SILICONFLOW_API_KEY || '');
     const geminiKey = process.env.GEMINI_API_KEY || (clientApiKey && clientApiKey.startsWith('AIza') ? clientApiKey : '');
     const generalApiKey = clientApiKey || process.env.OPENAI_API_KEY;
@@ -60,20 +65,32 @@ app.post("/api/generate-words", async (req, res) => {
 
     let textResponse = "";
 
-    // 1. 优先尝试智谱 GLM-4-Flash (国内直连完全免费免翻墙)
+    // 1. 优先尝试智谱 (国内直连完全免费免翻墙，支持 GLM-4.7-Flash / GLM-4-Flash)
     if (zhipuKey) {
-      const resp = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${zhipuKey}`,
-        },
-        body: JSON.stringify({
-          model: "glm-4-flash",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.7,
-        }),
-      });
+      const callZhipu = async (modelName: string) => {
+        return fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${zhipuKey}`,
+          },
+          body: JSON.stringify({
+            model: modelName,
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+          }),
+        });
+      };
+
+      let resp = await callZhipu(zhipuModel);
+      // 若 GLM-4.7-Flash 出现型号名称差异，自动平滑回退至 glm-4-flash
+      if (!resp.ok && zhipuModel !== "glm-4-flash") {
+        console.warn(`智谱模型 ${zhipuModel} 请求未成功 (${resp.status})，自动切换为 glm-4-flash 备选`);
+        const fallbackResp = await callZhipu("glm-4-flash");
+        if (fallbackResp.ok) {
+          resp = fallbackResp;
+        }
+      }
 
       if (!resp.ok) {
         const errText = await resp.text();

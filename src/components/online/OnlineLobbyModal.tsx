@@ -30,6 +30,7 @@ interface OnlineLobbyModalProps {
   onJoinRoom: (roomId: string, playerName: string, role?: PlayerRole) => void;
   onSelectRole: (role: PlayerRole) => void;
   onToggleReady: () => void;
+  onForceStart?: () => void;
 }
 
 export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
@@ -41,6 +42,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
   onJoinRoom,
   onSelectRole,
   onToggleReady,
+  onForceStart,
 }) => {
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('suilan_player_name') || '侠客');
   const [targetRoomId, setTargetRoomId] = useState('');
@@ -216,7 +218,12 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                      <span>智谱 API Key (免翻墙免费)</span>
+                      <span className="flex items-center gap-1.5">
+                        <span>智谱 API Key</span>
+                        <span className="text-[10px] px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-medium">
+                          已在后端内置生效
+                        </span>
+                      </span>
                       <a
                         href="https://open.bigmodel.cn"
                         target="_blank"
@@ -231,7 +238,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                         type="password"
                         value={aiApiKey}
                         onChange={(e) => setAiApiKey(e.target.value)}
-                        placeholder="选填：若服务端未配Key，在此填入自动保存"
+                        placeholder="留空即可使用内置免翻墙 Key（也支持填写自定义 Key 覆盖）"
                         className="w-full bg-white border border-purple-200 pl-8 pr-3 py-1.5 rounded-xl text-xs font-mono text-slate-900 outline-none focus:ring-2 focus:ring-purple-200"
                       />
                       <Key className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
@@ -447,37 +454,55 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
           </div>
         </div>
 
-        {/* 底栏准备/开始 */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-          <div className="text-xs text-slate-500">
+        {/* 底栏准备/开始与测试快捷操作 */}
+        <div className="px-4 sm:px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs text-slate-500 w-full sm:w-auto text-center sm:text-left">
             {!allCoreOccupied ? (
-              <span className="text-amber-600 font-medium">⚠️ 尚缺席位，请等待好友入座...</span>
+              <span className="text-amber-600 font-medium">⚠️ 尚缺席位（支持直接点击【自由测试/开局】试玩）</span>
             ) : (
               <span className="text-emerald-600 font-medium">✅ 四大席位已集齐，请确认准备</span>
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 w-full sm:w-auto">
+            {/* 直接查看对战盘面 (即使未满人也可查看) */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              title="关闭本窗口直接查看对战棋盘（随时可从顶栏重新打开）"
+            >
+              <Eye className="w-3.5 h-3.5 text-slate-500" />
+              <span>查看盘面</span>
+            </button>
+
+            {/* 自由测试 / 快速强制开局 (单人或任意人数均可体验对局) */}
+            {roomState.phase === 'LOBBY' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onForceStart?.();
+                  onClose();
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                title="单人调试或人数不够时，直接开启对局测试全套题目与规则"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>自由测试/开局</span>
+              </button>
+            )}
+
             {myRole !== 'SPECTATOR' && (
               <button
                 type="button"
                 onClick={onToggleReady}
-                className={`px-8 py-2.5 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer ${
+                className={`px-5 py-2 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer ${
                   myPlayer?.isReady
                     ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                 }`}
               >
                 {myPlayer?.isReady ? '取消准备' : '准备就绪'}
-              </button>
-            )}
-            {roomState.phase !== 'LOBBY' && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
-              >
-                返回对战盘面
               </button>
             )}
           </div>

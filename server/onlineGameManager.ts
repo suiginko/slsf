@@ -111,7 +111,8 @@ export class OnlineGameManager {
       const player = room.state.players.find((p) => p.id === socket.id);
       if (!player) return;
 
-      if (room.state.phase !== 'LOBBY' && role !== 'SPECTATOR') {
+      const isTestEnv = room.state.players.length < 4;
+      if (room.state.phase !== 'LOBBY' && role !== 'SPECTATOR' && !isTestEnv) {
         return callback?.({ success: false, error: '对局已开始，不可更换对战席位' });
       }
 
@@ -123,6 +124,15 @@ export class OnlineGameManager {
 
       player.role = role;
       player.isReady = false; // 换席位后重置准备状态
+
+      // 若在单人格子选中阶段换席位，同步下发当前题目答案
+      if (room.state.selectedCellId) {
+        const secret = room.secretWords.get(room.state.selectedCellId);
+        if (secret && (isTestEnv || role === 'RED_DESC' || role === 'GREEN_DESC')) {
+          socket.emit('online:secret_word_reveal', secret);
+        }
+      }
+
       callback?.({ success: true, role });
       this.broadcastState(roomId);
     });
@@ -151,6 +161,21 @@ export class OnlineGameManager {
       }
     });
 
+    // 4.1 强制开局 / 单人或人数未满时快速开局测试
+    socket.on('online:force_start', ({ roomId }) => {
+      const room = this.rooms.get(roomId);
+      if (!room || room.state.phase !== 'LOBBY') return;
+
+      this.startGame(roomId);
+      this.addLog(room, {
+        type: 'SYSTEM',
+        team: 'RED',
+        authorRole: 'SPECTATOR',
+        authorName: '系统裁判',
+        text: '⚠️ 已启动【自由测试模式】：人数未满也可任意选题、作答与全流程测试！',
+      });
+    });
+
     // 5. 选题（选格子）
     socket.on('online:select_cell', ({ roomId, cellId }) => {
       const room = this.rooms.get(roomId);
@@ -159,8 +184,10 @@ export class OnlineGameManager {
       const player = room.state.players.find((p) => p.id === socket.id);
       if (!player) return;
 
-      // 只有当前先手队的队员可选题
+      const isTestEnv = room.state.players.length < 4;
+      // 只有当前先手队的队员可选题；少于4人测试时允许任意玩家选格
       const isSelectingTeam =
+        isTestEnv ||
         (room.state.selectingTeam === 'RED' && (player.role === 'RED_DESC' || player.role === 'RED_GUESS')) ||
         (room.state.selectingTeam === 'GREEN' && (player.role === 'GREEN_DESC' || player.role === 'GREEN_GUESS'));
 
@@ -176,7 +203,7 @@ export class OnlineGameManager {
       room.state.answeringTeam = null;
       room.state.currentClueText = '';
 
-      // 向双方描述位私密下发本题答案与拼音
+      // 向描述位（或测试模式下所有玩家）私密下发本题答案与拼音
       const secret = room.secretWords.get(cellId);
       if (secret) {
         this.sendSecretToDescribers(room, secret);
@@ -201,9 +228,10 @@ export class OnlineGameManager {
       const player = room.state.players.find((p) => p.id === socket.id);
       if (!player) return;
 
-      // 验证是否为当前有权描述的描述位
+      const isTestEnv = room.state.players.length < 4;
+      // 验证是否为当前有权描述的描述位；测试模式允许直接描述
       const expectedRole: PlayerRole = room.state.clueTeam === 'RED' ? 'RED_DESC' : 'GREEN_DESC';
-      if (player.role !== expectedRole) {
+      if (!isTestEnv && player.role !== expectedRole) {
         return callback?.({ success: false, error: '当前不是你的描述轮次' });
       }
 
@@ -247,7 +275,9 @@ export class OnlineGameManager {
       const cell = room.state.cells.find((c) => c.id === room.state.selectedCellId);
       if (!cell) return;
 
+      const isTestEnv = room.state.players.length < 4;
       const isCurrentGuesser =
+        isTestEnv ||
         (room.state.answeringTeam === 'RED' && player.role === 'RED_GUESS') ||
         (room.state.answeringTeam === 'GREEN' && player.role === 'GREEN_GUESS');
 
@@ -275,6 +305,7 @@ export class OnlineGameManager {
       // 情形 B：对手猜词位扣 1（截胡抢答）
       const opponentTeam: Team = room.state.answeringTeam === 'RED' ? 'GREEN' : 'RED';
       const isOpponentGuesser =
+        isTestEnv ||
         (opponentTeam === 'RED' && player.role === 'RED_GUESS') ||
         (opponentTeam === 'GREEN' && player.role === 'GREEN_GUESS');
 
@@ -327,9 +358,10 @@ export class OnlineGameManager {
       const player = room.state.players.find((p) => p.id === socket.id);
       if (!player) return;
 
+      const isTestEnv = room.state.players.length < 4;
       // 验证当前是否为该猜词位作答
       const expectedRole: PlayerRole = room.state.answeringTeam === 'RED' ? 'RED_GUESS' : 'GREEN_GUESS';
-      if (player.role !== expectedRole) {
+      if (!isTestEnv && player.role !== expectedRole) {
         return callback?.({ success: false, error: '当前不是你的答题时机' });
       }
 
@@ -620,10 +652,13 @@ export class OnlineGameManager {
   }
 
   private sendSecretToDescribers(room: InternalRoom, secret: SecretWordInfo) {
+    const isTestEnv = room.state.players.length < 4;
     const descRoles: PlayerRole[] = ['RED_DESC', 'GREEN_DESC'];
-    const descPlayers = room.state.players.filter((p) => descRoles.includes(p.role));
+    const targetPlayers = isTestEnv
+      ? room.state.players
+      : room.state.players.filter((p) => descRoles.includes(p.role));
 
-    for (const dp of descPlayers) {
+    for (const dp of targetPlayers) {
       this.io.to(dp.id).emit('online:secret_word_reveal', secret);
     }
   }

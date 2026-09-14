@@ -43,6 +43,7 @@ export default function App() {
     joinRoom,
     selectRole,
     toggleReady,
+    forceStartGame: onlineForceStart,
     selectCell: onlineSelectCell,
     submitClue: onlineSubmitClue,
     pressBuzzer: onlinePressBuzzer,
@@ -449,6 +450,8 @@ export default function App() {
             onSubmitClue={onlineSubmitClue}
             onPressBuzzer={onlinePressBuzzer}
             onSubmitGuess={onlineSubmitGuess}
+            onForceStart={onlineForceStart}
+            onSelectRole={selectRole}
           />
         ) : (
           /* 本地主持人工作台舞台 */
@@ -580,7 +583,7 @@ export default function App() {
       {showRulesModal && <RuleGuideModal onClose={() => setShowRulesModal(false)} />}
 
       {/* 2v2 Online Multiplayer Lobby Modal */}
-      {(showOnlineLobby || (roomState && roomState.phase === 'LOBBY')) && (
+      {showOnlineLobby && (
         <OnlineLobbyModal
           roomState={roomState}
           myRole={myRole}
@@ -588,14 +591,13 @@ export default function App() {
           onClose={() => setShowOnlineLobby(false)}
           onCreateRoom={(pName, pId, customWords, customPackName) => {
             createRoom(pName, pId, customWords, customPackName);
-            setShowOnlineLobby(true);
           }}
           onJoinRoom={(rId, pName, prefRole) => {
             joinRoom(rId, pName, prefRole);
-            setShowOnlineLobby(true);
           }}
           onSelectRole={selectRole}
           onToggleReady={toggleReady}
+          onForceStart={onlineForceStart}
         />
       )}
     </div>

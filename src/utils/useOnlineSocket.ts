@@ -182,6 +182,12 @@ export function useOnlineSocket() {
     );
   }, [roomState, showToast]);
 
+  // 强制开局 / 单人或人数未满时测试开局
+  const forceStartGame = useCallback(() => {
+    if (!roomState) return;
+    socketRef.current?.emit('online:force_start', { roomId: roomState.roomId });
+  }, [roomState]);
+
   // 离开房间
   const leaveRoom = useCallback(() => {
     setRoomState(null);
@@ -199,6 +205,7 @@ export function useOnlineSocket() {
     joinRoom,
     selectRole,
     toggleReady,
+    forceStartGame,
     selectCell,
     submitClue,
     pressBuzzer,
