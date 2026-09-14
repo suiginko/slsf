@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  --team-red: #d81c2f;
+  --team-green: #37b484;
+}
+
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+@media (min-width: 1024px) {
+  #app-root {
+    zoom: 1.25;
+  }
+}
