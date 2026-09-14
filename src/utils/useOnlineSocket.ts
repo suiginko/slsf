@@ -70,21 +70,29 @@ export function useOnlineSocket() {
     };
   }, []);
 
-  // 1. 创建房间
-  const createRoom = useCallback((playerName: string, wordPackId: string) => {
-    socketRef.current?.emit(
-      'online:create_room',
-      { playerName, wordPackId },
-      (res: { success: boolean; roomId?: string; role?: PlayerRole; error?: string }) => {
-        if (res.success && res.role) {
-          setMyRole(res.role);
-          setSecretWord(null);
-        } else if (res.error) {
-          showToast(res.error);
+  // 1. 创建房间 (支持预设题库或 AI 定制题库)
+  const createRoom = useCallback(
+    (
+      playerName: string,
+      wordPackId: string,
+      customWords?: { word: string; category?: string }[],
+      customPackName?: string
+    ) => {
+      socketRef.current?.emit(
+        'online:create_room',
+        { playerName, wordPackId, customWords, customPackName },
+        (res: { success: boolean; roomId?: string; role?: PlayerRole; error?: string }) => {
+          if (res.success && res.role) {
+            setMyRole(res.role);
+            setSecretWord(null);
+          } else if (res.error) {
+            showToast(res.error);
+          }
         }
-      }
-    );
-  }, [showToast]);
+      );
+    },
+    [showToast]
+  );
 
   // 2. 加入房间
   const joinRoom = useCallback((roomId: string, playerName: string, preferredRole?: PlayerRole) => {

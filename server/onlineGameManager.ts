@@ -52,9 +52,9 @@ export class OnlineGameManager {
 
   public registerEvents(socket: Socket) {
     // 1. 创建房间
-    socket.on('online:create_room', ({ playerName, wordPackId }, callback) => {
+    socket.on('online:create_room', ({ playerName, wordPackId, customWords, customPackName }, callback) => {
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const room = this.initRoom(roomId, wordPackId);
+      const room = this.initRoom(roomId, wordPackId, customWords, customPackName);
       this.rooms.set(roomId, room);
 
       const player: OnlinePlayer = {
@@ -372,11 +372,25 @@ export class OnlineGameManager {
     });
   }
 
-  private initRoom(roomId: string, packId?: string): InternalRoom {
-    const pack = DEFAULT_WORD_PACKS.find((p) => p.id === packId) || DEFAULT_WORD_PACKS[0];
-    const selectedWords = pack.words.slice(0, 25);
-    while (selectedWords.length < 25) {
-      selectedWords.push(pack.words[selectedWords.length % pack.words.length]);
+  private initRoom(
+    roomId: string,
+    packId?: string,
+    customWords?: { word: string; category?: string }[],
+    customPackName?: string
+  ): InternalRoom {
+    let packName = '精选词库';
+    let selectedWords: { word: string; category?: string }[] = [];
+
+    if (Array.isArray(customWords) && customWords.length >= 25) {
+      selectedWords = customWords.slice(0, 25);
+      packName = customPackName || 'AI专属定制题库';
+    } else {
+      const pack = DEFAULT_WORD_PACKS.find((p) => p.id === packId) || DEFAULT_WORD_PACKS[0];
+      selectedWords = pack.words.slice(0, 25);
+      while (selectedWords.length < 25) {
+        selectedWords.push(pack.words[selectedWords.length % pack.words.length]);
+      }
+      packName = pack.name;
     }
 
     const processed = processWordsWithUniqueCodes(selectedWords);
@@ -432,7 +446,7 @@ export class OnlineGameManager {
       logs: [],
       winner: null,
       winningPath: [],
-      wordPackName: pack.name,
+      wordPackName: packName,
       roundCount: 1,
     };
 

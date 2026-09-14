@@ -12,6 +12,8 @@ import {
   ArrowRight,
   Flame,
   CheckCircle2,
+  Loader2,
+  Key,
 } from 'lucide-react';
 
 interface OnlineLobbyModalProps {
@@ -19,7 +21,12 @@ interface OnlineLobbyModalProps {
   myRole: PlayerRole;
   myPlayerId: string;
   onClose: () => void;
-  onCreateRoom: (playerName: string, packId: string) => void;
+  onCreateRoom: (
+    playerName: string,
+    packId: string,
+    customWords?: { word: string; category?: string }[],
+    customPackName?: string
+  ) => void;
   onJoinRoom: (roomId: string, playerName: string, role?: PlayerRole) => void;
   onSelectRole: (role: PlayerRole) => void;
   onToggleReady: () => void;
@@ -38,8 +45,45 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('suilan_player_name') || '侠客');
   const [targetRoomId, setTargetRoomId] = useState('');
   const [selectedPackId, setSelectedPackId] = useState(DEFAULT_WORD_PACKS[0].id);
+  const [roomPackMode, setRoomPackMode] = useState<'PRESET' | 'AI'>('PRESET');
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiApiKey, setAiApiKey] = useState(() => localStorage.getItem('suilan_ai_api_key') || '');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const handleCreateRoomWithAi = async () => {
+    if (!aiTopic.trim()) {
+      setAiError('请输入出题主题（如：周星驰经典电影、金庸武侠世界等）');
+      return;
+    }
+    setIsAiGenerating(true);
+    setAiError('');
+    try {
+      if (aiApiKey) {
+        localStorage.setItem('suilan_ai_api_key', aiApiKey.trim());
+      }
+      const res = await fetch('/api/generate-words', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: aiTopic.trim(),
+          count: 25,
+          apiKey: aiApiKey.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'AI 出题失败，请重试');
+      }
+      onCreateRoom(playerName, '', data.words, `AI定制·${aiTopic.trim()}`);
+    } catch (err: any) {
+      setAiError(err.message || '生成失败，请检查网络或配置');
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
 
   const handleNameChange = (val: string) => {
     setPlayerName(val);
@@ -99,29 +143,125 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                   <Sparkles className="w-4 h-4 text-blue-600" />
                   新建 2v2 对战房间
                 </span>
+                {/* 模式切换 Tabs */}
+                <div className="flex bg-white/80 p-0.5 rounded-lg border border-blue-200/60 text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setRoomPackMode('PRESET')}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                      roomPackMode === 'PRESET'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    预设词库
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRoomPackMode('AI')}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                      roomPackMode === 'AI'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'text-purple-700 hover:text-purple-900'
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>AI出题</span>
+                  </button>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[11px] text-slate-500 font-medium">选择对战词库</label>
-                <select
-                  value={selectedPackId}
-                  onChange={(e) => setSelectedPackId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-medium"
-                >
-                  {DEFAULT_WORD_PACKS.map((pack) => (
-                    <option key={pack.id} value={pack.id}>
-                      {pack.name} ({pack.words.length} 词)
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={() => onCreateRoom(playerName, selectedPackId)}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <span>创建房间并入座</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+
+              {roomPackMode === 'PRESET' ? (
+                /* 预设词库选择 */
+                <div className="space-y-2.5">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-slate-500 font-medium">选择对战词库</label>
+                    <select
+                      value={selectedPackId}
+                      onChange={(e) => setSelectedPackId(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-medium"
+                    >
+                      {DEFAULT_WORD_PACKS.map((pack) => (
+                        <option key={pack.id} value={pack.id}>
+                          {pack.name} ({pack.words.length} 词)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onCreateRoom(playerName, selectedPackId)}
+                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span>创建房间并入座</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                /* AI 智能出题选项 */
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      输入自定义对战主题
+                    </label>
+                    <input
+                      type="text"
+                      value={aiTopic}
+                      onChange={(e) => setAiTopic(e.target.value)}
+                      placeholder="如：周星驰电影 / 金庸武侠小说 / 网络流行梗"
+                      className="w-full px-3 py-2 text-xs bg-white border border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 text-slate-800 font-medium"
+                      onKeyDown={(e) => e.key === 'Enter' && handleCreateRoomWithAi()}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>智谱 API Key (免翻墙免费)</span>
+                      <a
+                        href="https://open.bigmodel.cn"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-purple-600 hover:underline text-[10px]"
+                      >
+                        获取免费Key ↗
+                      </a>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        value={aiApiKey}
+                        onChange={(e) => setAiApiKey(e.target.value)}
+                        placeholder="选填：若服务端未配Key，在此填入自动保存"
+                        className="w-full bg-white border border-purple-200 pl-8 pr-3 py-1.5 rounded-xl text-xs font-mono text-slate-900 outline-none focus:ring-2 focus:ring-purple-200"
+                      />
+                      <Key className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+                    </div>
+                  </div>
+
+                  {aiError && (
+                    <p className="text-xs text-rose-600 font-bold">{aiError}</p>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={isAiGenerating}
+                    onClick={handleCreateRoomWithAi}
+                    className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {isAiGenerating ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>正在由国内 AI 构思生成 25 题并开房...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>AI 生成全新 25 题并开房</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 加入已有房间 */}

@@ -586,8 +586,8 @@ export default function App() {
           myRole={myRole}
           myPlayerId={myPlayerId}
           onClose={() => setShowOnlineLobby(false)}
-          onCreateRoom={(pName, pId) => {
-            createRoom(pName, pId);
+          onCreateRoom={(pName, pId, customWords, customPackName) => {
+            createRoom(pName, pId, customWords, customPackName);
             setShowOnlineLobby(true);
           }}
           onJoinRoom={(rId, pName, prefRole) => {
