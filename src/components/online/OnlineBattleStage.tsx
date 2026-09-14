@@ -5,7 +5,7 @@ import {
   PlayerRole,
   SecretWordInfo,
 } from '../../types/online';
-import { CellData } from '../../types';
+import { CellData, Team } from '../../types';
 import { HexBoard } from '../HexBoard';
 import { BuzzerIndicators } from './BuzzerIndicators';
 import { RoleActionPanel } from './RoleActionPanel';
@@ -19,6 +19,7 @@ import {
   ArrowRight,
   Flame,
   Radio,
+  Crown,
 } from 'lucide-react';
 
 interface OnlineBattleStageProps {
@@ -35,6 +36,9 @@ interface OnlineBattleStageProps {
   onSubmitGuess: (guessText: string) => void;
   onForceStart?: () => void;
   onSelectRole?: (role: PlayerRole) => void;
+  onHostAwardCell?: (winner: Team) => void;
+  onHostResetCell?: () => void;
+  onHostAdjustTimer?: (seconds: number) => void;
 }
 
 function getRoleTitle(role: PlayerRole): string {
@@ -47,6 +51,8 @@ function getRoleTitle(role: PlayerRole): string {
       return '🟢 绿方描述位';
     case 'GREEN_GUESS':
       return '🟢 绿方猜词位';
+    case 'HOST':
+      return '🎩 现场主持人 (裁判)';
     case 'SPECTATOR':
       return '👀 围观观众';
     default:
@@ -64,6 +70,8 @@ function getRoleShortTitle(role: PlayerRole): string {
       return '绿描';
     case 'GREEN_GUESS':
       return '绿猜';
+    case 'HOST':
+      return '主持';
     case 'SPECTATOR':
       return '观众';
     default:
@@ -85,6 +93,9 @@ export const OnlineBattleStage: React.FC<OnlineBattleStageProps> = ({
   onSubmitGuess,
   onForceStart,
   onSelectRole,
+  onHostAwardCell,
+  onHostResetCell,
+  onHostAdjustTimer,
 }) => {
   const [copied, setCopied] = React.useState(false);
 
@@ -130,11 +141,12 @@ export const OnlineBattleStage: React.FC<OnlineBattleStageProps> = ({
     return roomState.cells.find((c) => c.id === roomState.selectedCellId) || null;
   }, [roomState.cells, roomState.selectedCellId]);
 
-  // 寻找四大席位的选手名字
+  // 寻找四大席位与主持人的选手名字
   const redDesc = roomState.players.find((p) => p.role === 'RED_DESC');
   const redGuess = roomState.players.find((p) => p.role === 'RED_GUESS');
   const greenDesc = roomState.players.find((p) => p.role === 'GREEN_DESC');
   const greenGuess = roomState.players.find((p) => p.role === 'GREEN_GUESS');
+  const hostPlayer = roomState.players.find((p) => p.role === 'HOST');
 
   // 胜利撒花特效
   useEffect(() => {
@@ -250,7 +262,7 @@ export const OnlineBattleStage: React.FC<OnlineBattleStageProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
-          {(['RED_DESC', 'RED_GUESS', 'GREEN_DESC', 'GREEN_GUESS', 'SPECTATOR'] as PlayerRole[]).map((r) => {
+          {(['RED_DESC', 'RED_GUESS', 'GREEN_DESC', 'GREEN_GUESS', 'HOST', 'SPECTATOR'] as PlayerRole[]).map((r) => {
             const isMe = myRole === r;
             return (
               <button
@@ -315,6 +327,9 @@ export const OnlineBattleStage: React.FC<OnlineBattleStageProps> = ({
             onSubmitClue={onSubmitClue}
             onPressBuzzer={onPressBuzzer}
             onSubmitGuess={onSubmitGuess}
+            onHostAwardCell={onHostAwardCell}
+            onHostResetCell={onHostResetCell}
+            onHostAdjustTimer={onHostAdjustTimer}
           />
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { Team } from '../types';
 import {
   OnlineRoomState,
   PlayerRole,
@@ -152,7 +153,7 @@ export function useOnlineSocket() {
     );
   }, [roomState, showToast]);
 
-  // 7. 抢答 / 防抢 (扣1)
+  // 7. 抢答 / 防抢保护
   const pressBuzzer = useCallback(() => {
     if (!roomState) return;
     socketRef.current?.emit(
@@ -188,6 +189,39 @@ export function useOnlineSocket() {
     socketRef.current?.emit('online:force_start', { roomId: roomState.roomId });
   }, [roomState]);
 
+  // 主持人裁判操作：手动判定占领
+  const hostAwardCell = useCallback((winner: Team) => {
+    if (!roomState) return;
+    socketRef.current?.emit('online:host_award_cell', { roomId: roomState.roomId, winner }, (res: any) => {
+      if (res?.error) showToast(res.error);
+    });
+  }, [roomState, showToast]);
+
+  // 主持人裁判操作：重置当前格
+  const hostResetCell = useCallback(() => {
+    if (!roomState) return;
+    socketRef.current?.emit('online:host_reset_cell', { roomId: roomState.roomId }, (res: any) => {
+      if (res?.error) showToast(res.error);
+    });
+  }, [roomState, showToast]);
+
+  // 主持人裁判操作：调整倒计时
+  const hostAdjustTimer = useCallback((seconds: number) => {
+    if (!roomState) return;
+    socketRef.current?.emit('online:host_adjust_timer', { roomId: roomState.roomId, seconds }, (res: any) => {
+      if (res?.error) showToast(res.error);
+    });
+  }, [roomState, showToast]);
+
+  // 主持人：比赛前设置题库
+  const hostSetWordPack = useCallback((wordPackName: string, words: { word: string; category?: string }[]) => {
+    if (!roomState) return;
+    socketRef.current?.emit('online:host_set_wordpack', { roomId: roomState.roomId, wordPackName, words }, (res: any) => {
+      if (res?.error) showToast(res.error);
+      else showToast(`已成功更换题库为【${wordPackName}】`);
+    });
+  }, [roomState, showToast]);
+
   // 离开房间
   const leaveRoom = useCallback(() => {
     setRoomState(null);
@@ -206,6 +240,10 @@ export function useOnlineSocket() {
     selectRole,
     toggleReady,
     forceStartGame,
+    hostAwardCell,
+    hostResetCell,
+    hostAdjustTimer,
+    hostSetWordPack,
     selectCell,
     submitClue,
     pressBuzzer,

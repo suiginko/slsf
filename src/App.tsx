@@ -44,6 +44,10 @@ export default function App() {
     selectRole,
     toggleReady,
     forceStartGame: onlineForceStart,
+    hostAwardCell: onlineHostAwardCell,
+    hostResetCell: onlineHostResetCell,
+    hostAdjustTimer: onlineHostAdjustTimer,
+    hostSetWordPack: onlineHostSetWordPack,
     selectCell: onlineSelectCell,
     submitClue: onlineSubmitClue,
     pressBuzzer: onlinePressBuzzer,
@@ -452,6 +456,9 @@ export default function App() {
             onSubmitGuess={onlineSubmitGuess}
             onForceStart={onlineForceStart}
             onSelectRole={selectRole}
+            onHostAwardCell={onlineHostAwardCell}
+            onHostResetCell={onlineHostResetCell}
+            onHostAdjustTimer={onlineHostAdjustTimer}
           />
         ) : (
           /* 本地主持人工作台舞台 */
@@ -598,6 +605,7 @@ export default function App() {
           onSelectRole={selectRole}
           onToggleReady={toggleReady}
           onForceStart={onlineForceStart}
+          onHostSetWordPack={onlineHostSetWordPack}
         />
       )}
     </div>

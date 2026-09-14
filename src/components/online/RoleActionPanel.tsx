@@ -18,6 +18,7 @@ import {
   Volume2,
   ArrowRight,
   Sparkles,
+  Crown,
 } from 'lucide-react';
 
 interface RoleActionPanelProps {
@@ -29,6 +30,9 @@ interface RoleActionPanelProps {
   onSubmitClue: (clueText: string) => void;
   onPressBuzzer: () => void;
   onSubmitGuess: (guessText: string) => void;
+  onHostAwardCell?: (winner: Team) => void;
+  onHostResetCell?: () => void;
+  onHostAdjustTimer?: (seconds: number) => void;
 }
 
 export const RoleActionPanel: React.FC<RoleActionPanelProps> = ({
@@ -39,6 +43,9 @@ export const RoleActionPanel: React.FC<RoleActionPanelProps> = ({
   onSubmitClue,
   onPressBuzzer,
   onSubmitGuess,
+  onHostAwardCell,
+  onHostResetCell,
+  onHostAdjustTimer,
 }) => {
   const [clueInput, setClueInput] = useState('');
   const [guessInput, setGuessInput] = useState('');
@@ -62,6 +69,7 @@ export const RoleActionPanel: React.FC<RoleActionPanelProps> = ({
 
   const isDescriber = myRole === 'RED_DESC' || myRole === 'GREEN_DESC';
   const isGuesser = myRole === 'RED_GUESS' || myRole === 'GREEN_GUESS';
+  const isHost = myRole === 'HOST';
   const myTeam: Team | null =
     myRole.startsWith('RED') ? 'RED' : myRole.startsWith('GREEN') ? 'GREEN' : null;
 
@@ -197,29 +205,119 @@ export const RoleActionPanel: React.FC<RoleActionPanelProps> = ({
           >
             <Clock className="w-3.5 h-3.5" />
             <span>
-              {roomState.phase === 'GUESSING_BUZZED' ? '扣1作答中: ' : '答题倒计时: '}
+              {roomState.phase === 'GUESSING_BUZZED' ? '抢答作答中: ' : '答题倒计时: '}
               {roomState.timerRemaining}s
             </span>
           </div>
         )}
       </div>
 
-      {/* 双方描述位：秘密题面显示卡片 */}
-      {isDescriber && secretWord && (
-        <div className="p-3.5 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-[11px] font-bold text-purple-900">
+      {/* 双方描述位 / 主持人：秘密题面显示卡片 */}
+      {(isDescriber || isHost) && secretWord && (
+        <div
+          className={`p-3.5 border rounded-xl space-y-1 ${
+            isHost
+              ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200/80'
+              : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200/80'
+          }`}
+        >
+          <div
+            className={`flex items-center justify-between text-[11px] font-bold ${
+              isHost ? 'text-amber-900' : 'text-purple-900'
+            }`}
+          >
             <span className="flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-              【描述位专属密函·绝密勿露】
+              <Sparkles className={`w-3.5 h-3.5 ${isHost ? 'text-amber-600' : 'text-purple-600'}`} />
+              {isHost ? '【🎩 主持人裁判密函·目标答案】' : '【描述位专属密函·绝密勿露】'}
             </span>
-            <span className="font-mono text-purple-700">{secretWord.pinyin}</span>
+            <span className={`font-mono ${isHost ? 'text-amber-700' : 'text-purple-700'}`}>
+              {secretWord.pinyin}
+            </span>
           </div>
-          <div className="text-xl font-black text-purple-950 tracking-wider font-mono">
+          <div
+            className={`text-xl font-black tracking-wider font-mono ${
+              isHost ? 'text-amber-950' : 'text-purple-950'
+            }`}
+          >
             {secretWord.word}
           </div>
-          <p className="text-[10px] text-purple-700/80">
-            * 双方描述位均可见。请用<strong>任意二字组合</strong>进行描述，严禁直接带入原词任意汉字！
+          <p className={`text-[10px] ${isHost ? 'text-amber-700/80' : 'text-purple-700/80'}`}>
+            {isHost
+              ? `* 主持人上帝视角。词长 ${secretWord.charCount} 字${
+                  secretWord.category ? ` · 类别：${secretWord.category}` : ''
+                }。若选手答案意近或有争议，您可随时在下方现场裁定。`
+              : '* 双方描述位均可见。请用任意二字组合进行描述，严禁直接带入原词任意汉字！'}
           </p>
+        </div>
+      )}
+
+      {/* 主持人现场裁判控制台 */}
+      {isHost && (
+        <div className="p-3.5 bg-slate-900 text-white rounded-2xl space-y-3 shadow-md border border-slate-800">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold flex items-center gap-1.5 text-amber-400">
+              <Crown className="w-4 h-4" />
+              主持人现场裁判控制台
+            </span>
+            <span className="text-[10px] text-slate-400">拥有最高仲裁裁决权</span>
+          </div>
+
+          {/* 实时判分裁定 */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onHostAwardCell?.('RED')}
+              className="py-2 px-3 bg-[#d81c2f] hover:bg-[#b01424] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              title="裁定本题有效并直接判给红方占领"
+            >
+              <span>🔴 裁定红方占领</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onHostAwardCell?.('GREEN')}
+              className="py-2 px-3 bg-[#37b484] hover:bg-[#288a64] text-white text-xs font-bold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              title="裁定本题有效并直接判给绿方占领"
+            >
+              <span>🟢 裁定绿方占领</span>
+            </button>
+          </div>
+
+          {/* 倒计时与选格控制 */}
+          <div className="flex items-center gap-1.5 pt-1 text-[11px]">
+            <span className="text-slate-400 shrink-0">计时控制:</span>
+            <button
+              type="button"
+              onClick={() => onHostAdjustTimer?.(30)}
+              className="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors font-mono cursor-pointer text-center"
+              title="给当前作答时间增加 30 秒"
+            >
+              +30s
+            </button>
+            <button
+              type="button"
+              onClick={() => onHostAdjustTimer?.(-90)}
+              className="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors font-mono cursor-pointer text-center"
+              title="将时间重设为 90 秒"
+            >
+              重置90s
+            </button>
+            <button
+              type="button"
+              onClick={() => onHostAdjustTimer?.(-20)}
+              className="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors font-mono cursor-pointer text-center"
+              title="将时间重设为 20 秒"
+            >
+              重置20s
+            </button>
+            <button
+              type="button"
+              onClick={() => onHostResetCell?.()}
+              className="py-1 px-2.5 bg-rose-900/60 hover:bg-rose-900 text-rose-200 rounded-lg transition-colors font-bold cursor-pointer"
+              title="重置当前选定的格子，重新由当前队伍选格"
+            >
+              作废重选
+            </button>
+          </div>
         </div>
       )}
 
@@ -329,18 +427,18 @@ export const RoleActionPanel: React.FC<RoleActionPanelProps> = ({
             )}
           </div>
 
-          {/* 猜词位专属：抢答与防抢扣1按钮 */}
+          {/* 猜词位专属：抢答与防抢保护按钮 */}
           {isGuesser && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
                   <Flame className="w-3.5 h-3.5 text-amber-500" />
-                  抢答与防抢博弈 (扣1)
+                  抢答与防抢保护机制
                 </span>
-                <span className="text-[10px] text-slate-400">无论何方扣1，作答时间均缩减为20秒</span>
+                <span className="text-[10px] text-slate-400">无论何方触发，作答时间均缩减为20秒</span>
               </div>
 
-              {/* 若我是当前作答方 -> 可提前扣1防抢 */}
+              {/* 若我是当前作答方 -> 可提前开启防抢保护 */}
               {roomState.answeringTeam === myTeam ? (
                 <button
                   type="button"
@@ -356,7 +454,7 @@ export const RoleActionPanel: React.FC<RoleActionPanelProps> = ({
                   <span>
                     {roomState.isProtected
                       ? '✅ 已开启防抢保护（对方无法截胡，倒计时20s）'
-                      : '🛡️ 提前扣 1 防抢（锁定作答权，时间缩为20s）'}
+                      : '🛡️ 开启防抢保护（锁定作答权，时间缩为20s）'}
                   </span>
                 </button>
               ) : (
@@ -374,9 +472,9 @@ export const RoleActionPanel: React.FC<RoleActionPanelProps> = ({
                   <Zap className="w-4 h-4 fill-current" />
                   <span>
                     {roomState.isProtected
-                      ? '对方已防抢，无法截胡'
+                      ? '对方已防抢保护，无法截胡'
                       : canHijackBuzzer
-                      ? `⚡ 扣 1 截胡抢答！（消耗本${myTeam === 'RED' ? '行' : '列'}机会，抢下20s答题权）`
+                      ? `⚡ 申请截胡抢答！（消耗本${myTeam === 'RED' ? '行' : '列'}机会，抢下20s答题权）`
                       : `本${myTeam === 'RED' ? '行' : '列'}抢答机会已耗尽，无法抢答`}
                   </span>
                 </button>

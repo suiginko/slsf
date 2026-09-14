@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Loader2,
   Key,
+  Crown,
 } from 'lucide-react';
 
 interface OnlineLobbyModalProps {
@@ -31,6 +32,7 @@ interface OnlineLobbyModalProps {
   onSelectRole: (role: PlayerRole) => void;
   onToggleReady: () => void;
   onForceStart?: () => void;
+  onHostSetWordPack?: (wordPackName: string, words: { word: string; category?: string }[]) => void;
 }
 
 export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
@@ -43,6 +45,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
   onSelectRole,
   onToggleReady,
   onForceStart,
+  onHostSetWordPack,
 }) => {
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('suilan_player_name') || '侠客');
   const [targetRoomId, setTargetRoomId] = useState('');
@@ -306,7 +309,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
               <ul className="list-disc list-inside space-y-0.5 text-amber-800 pl-1">
                 <li>红方纵向连通胜，绿方横向连通胜。</li>
                 <li>描述位只能给出<strong>恰好两个字</strong>的描述，且严禁漏字。</li>
-                <li>正常答题 90 秒；双方猜词位均可扣 1 触发 20 秒抢答/防抢。</li>
+                <li>正常答题 90 秒；双方猜词位均可触发 20 秒抢答或防抢保护。</li>
               </ul>
             </div>
           </div>
@@ -315,12 +318,13 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
     );
   }
 
-  // 渲染房间内 4 人选位与准备就绪状态
-  const roles: { role: PlayerRole; title: string; desc: string; team: 'RED' | 'GREEN' | 'NEUTRAL' }[] = [
+  // 渲染房间内席位与准备就绪状态 (4 竞技席位 + 1 可选主持裁判席位)
+  const roles: { role: PlayerRole; title: string; desc: string; team: 'RED' | 'GREEN' | 'HOST' }[] = [
     { role: 'RED_DESC', title: '🔴 红方描述位', desc: '阅读秘密答案，给出二字线索', team: 'RED' },
-    { role: 'RED_GUESS', title: '🔴 红方猜词位', desc: '根据二字线索猜词，可扣1抢答', team: 'RED' },
+    { role: 'RED_GUESS', title: '🔴 红方猜词位', desc: '根据二字线索猜词，可申请抢答或防抢', team: 'RED' },
     { role: 'GREEN_DESC', title: '🟢 绿方描述位', desc: '阅读秘密答案，给出二字线索', team: 'GREEN' },
-    { role: 'GREEN_GUESS', title: '🟢 绿方猜词位', desc: '根据二字线索猜词，可扣1抢答', team: 'GREEN' },
+    { role: 'GREEN_GUESS', title: '🟢 绿方猜词位', desc: '根据二字线索猜词，可申请抢答或防抢', team: 'GREEN' },
+    { role: 'HOST', title: '🎩 主持人席位 (可选裁判)', desc: '选填·主持赛程、设置题库、现场裁判判分与计时', team: 'HOST' },
   ];
 
   const myPlayer = roomState.players.find((p) => p.id === myPlayerId);
@@ -372,6 +376,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
               const occupant = roomState.players.find((p) => p.role === item.role);
               const isMe = occupant?.id === myPlayerId;
               const isRed = item.team === 'RED';
+              const isHost = item.team === 'HOST';
 
               return (
                 <div
@@ -382,13 +387,20 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                       ? isMe
                         ? isRed
                           ? 'border-[#d81c2f] bg-[#d81c2f]/5 shadow-sm ring-2 ring-[#d81c2f]/20'
+                          : isHost
+                          ? 'border-amber-500 bg-amber-500/10 shadow-sm ring-2 ring-amber-500/20'
                           : 'border-[#37b484] bg-[#37b484]/5 shadow-sm ring-2 ring-[#37b484]/20'
                         : 'border-slate-200 bg-slate-50/50'
+                      : isHost
+                      ? 'border-dashed border-amber-300 hover:border-amber-500 hover:bg-amber-50/30 cursor-pointer sm:col-span-2'
                       : 'border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/30 cursor-pointer'
-                  }`}
+                  } ${isHost && occupant ? 'sm:col-span-2' : ''}`}
                 >
                   <div className="flex items-start justify-between mb-1.5">
-                    <span className="text-xs font-bold text-slate-900">{item.title}</span>
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                      {isHost && <Crown className="w-3.5 h-3.5 text-amber-500" />}
+                      {item.title}
+                    </span>
                     {occupant?.isReady && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center gap-0.5">
                         <CheckCircle2 className="w-3 h-3" /> 已准备
@@ -402,7 +414,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                       <div className="flex items-center gap-1.5">
                         <div
                           className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
-                            isRed ? 'bg-[#d81c2f]' : 'bg-[#37b484]'
+                            isRed ? 'bg-[#d81c2f]' : isHost ? 'bg-amber-600' : 'bg-[#37b484]'
                           }`}
                         >
                           {occupant.name.charAt(0)}
@@ -412,7 +424,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                         </span>
                       </div>
                     ) : (
-                      <span className="text-xs text-blue-600 font-bold flex items-center gap-1">
+                      <span className={`text-xs font-bold flex items-center gap-1 ${isHost ? 'text-amber-600' : 'text-blue-600'}`}>
                         + 点击入座此席位
                       </span>
                     )}
@@ -421,6 +433,95 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
               );
             })}
           </div>
+
+          {/* 主持人专属：修改比赛题库 */}
+          {myRole === 'HOST' && (
+            <div className="p-4 bg-gradient-to-r from-amber-50/70 to-orange-50/50 border border-amber-200/80 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                  <Crown className="w-4 h-4 text-amber-600" />
+                  主持人权限：手动配置本场题库
+                </span>
+                <span className="text-[10px] text-amber-800">
+                  当前: {roomState.wordPackName}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedPackId}
+                  onChange={(e) => setSelectedPackId(e.target.value)}
+                  className="flex-1 px-3 py-1.5 text-xs bg-white border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-300 text-slate-800 font-medium"
+                >
+                  {DEFAULT_WORD_PACKS.map((pack) => (
+                    <option key={pack.id} value={pack.id}>
+                      {pack.name} ({pack.words.length} 词)
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const pack = DEFAULT_WORD_PACKS.find((p) => p.id === selectedPackId);
+                    if (pack) {
+                      onHostSetWordPack?.(pack.name, pack.words);
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
+                >
+                  应用预设题库
+                </button>
+              </div>
+
+              {/* AI 定制出题 */}
+              <div className="flex items-center gap-2 pt-1 border-t border-amber-200/60">
+                <input
+                  type="text"
+                  value={aiTopic}
+                  onChange={(e) => setAiTopic(e.target.value)}
+                  placeholder="或输入AI主题定制 (如：三国演义/金庸/影视)"
+                  className="flex-1 px-3 py-1.5 text-xs bg-white border border-amber-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-300 text-slate-800 font-medium"
+                />
+                <button
+                  type="button"
+                  disabled={isAiGenerating}
+                  onClick={async () => {
+                    if (!aiTopic.trim()) return;
+                    setIsAiGenerating(true);
+                    setAiError('');
+                    try {
+                      const res = await fetch('/api/generate-words', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          topic: aiTopic.trim(),
+                          count: 25,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok || !data.success) {
+                        throw new Error(data.error || 'AI 出题失败');
+                      }
+                      onHostSetWordPack?.(`AI·${aiTopic.trim()}`, data.words);
+                    } catch (err: any) {
+                      setAiError(err.message || 'AI 出题失败');
+                    } finally {
+                      setIsAiGenerating(false);
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                >
+                  {isAiGenerating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isAiGenerating ? '生成中...' : 'AI换题'}</span>
+                </button>
+              </div>
+              {aiError && <p className="text-[11px] text-rose-600 font-bold">{aiError}</p>}
+            </div>
+          )}
 
           {/* 观战席与观众列表 */}
           <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">

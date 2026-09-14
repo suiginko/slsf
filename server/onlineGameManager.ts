@@ -125,10 +125,10 @@ export class OnlineGameManager {
       player.role = role;
       player.isReady = false; // 换席位后重置准备状态
 
-      // 若在单人格子选中阶段换席位，同步下发当前题目答案
+      // 若在格子选中阶段换席位，同步下发当前题目答案给描述位或主持人
       if (room.state.selectedCellId) {
         const secret = room.secretWords.get(room.state.selectedCellId);
-        if (secret && (isTestEnv || role === 'RED_DESC' || role === 'GREEN_DESC')) {
+        if (secret && (isTestEnv || role === 'RED_DESC' || role === 'GREEN_DESC' || role === 'HOST')) {
           socket.emit('online:secret_word_reveal', secret);
         }
       }
@@ -262,7 +262,7 @@ export class OnlineGameManager {
       this.startTimer(roomId, 90);
     });
 
-    // 7. 抢答 / 防抢 (扣1)
+    // 7. 抢答 / 防抢保护
     socket.on('online:press_buzzer', ({ roomId }, callback) => {
       const room = this.rooms.get(roomId);
       if (!room || !['GUESSING_NORMAL', 'GUESSING_BUZZED'].includes(room.state.phase) || !room.state.selectedCellId) {
@@ -281,7 +281,7 @@ export class OnlineGameManager {
         (room.state.answeringTeam === 'RED' && player.role === 'RED_GUESS') ||
         (room.state.answeringTeam === 'GREEN' && player.role === 'GREEN_GUESS');
 
-      // 情形 A：当前作答方猜词位提前扣 1（防抢保护）
+      // 情形 A：当前作答方猜词位提前开启防抢保护
       if (isCurrentGuesser) {
         if (room.state.isProtected) {
           return callback?.({ success: false, error: '本方已处于防抢保护中' });
@@ -294,15 +294,15 @@ export class OnlineGameManager {
           team: room.state.answeringTeam!,
           authorRole: player.role,
           authorName: player.name,
-          text: `扣 1 防抢成功！对方无法截胡，答题时间缩减为 20 秒`,
+          text: `🛡️ 开启防抢保护成功！对方无法截胡，答题时间缩减为 20 秒`,
         });
 
-        callback?.({ success: true, message: '防抢成功，20秒倒计时启动' });
+        callback?.({ success: true, message: '防抢保护成功，20秒倒计时启动' });
         this.startTimer(roomId, 20);
         return;
       }
 
-      // 情形 B：对手猜词位扣 1（截胡抢答）
+      // 情形 B：对手猜词位截胡抢答
       const opponentTeam: Team = room.state.answeringTeam === 'RED' ? 'GREEN' : 'RED';
       const isOpponentGuesser =
         isTestEnv ||
@@ -310,11 +310,11 @@ export class OnlineGameManager {
         (opponentTeam === 'GREEN' && player.role === 'GREEN_GUESS');
 
       if (!isOpponentGuesser) {
-        return callback?.({ success: false, error: '只有双方猜词位可执行扣1操作' });
+        return callback?.({ success: false, error: '只有双方猜词位可执行抢答或防抢保护' });
       }
 
       if (room.state.isProtected) {
-        return callback?.({ success: false, error: '对方已提前扣1防抢，截胡失败！' });
+        return callback?.({ success: false, error: '对方已提前启动防抢保护，截胡失败！' });
       }
 
       // 检查抢答配额（红方按行，绿方按列）
@@ -341,7 +341,7 @@ export class OnlineGameManager {
         team: opponentTeam,
         authorRole: player.role,
         authorName: player.name,
-        text: `【抢答成功！】消耗对应机会，获得 20 秒作答时间！`,
+        text: `⚡ 【抢答成功！】消耗对应机会，获得 20 秒作答时间！`,
       });
 
       callback?.({ success: true, message: '抢答成功！请在20秒内作答' });
@@ -389,6 +389,149 @@ export class OnlineGameManager {
         this.handleWrongGuessOrTimeout(roomId, 'WRONG_ANSWER');
         callback?.({ success: true, correct: false });
       }
+    });
+
+    // 8.1 主持人裁判：手动判定当前格得分归属
+    socket.on('online:host_award_cell', ({ roomId, winner }, callback) => {
+      const room = this.rooms.get(roomId);
+      if (!room || !room.state.selectedCellId || room.state.phase === 'LOBBY' || room.state.phase === 'GAME_OVER') return;
+      const player = room.state.players.find((p) => p.id === socket.id);
+      if (!player || (player.role !== 'HOST' && !player.isHost)) {
+        return callback?.({ success: false, error: '无主持人裁判权限' });
+      }
+
+      const cell = room.state.cells.find((c) => c.id === room.state.selectedCellId);
+      this.addLog(room, {
+        type: 'HOST_ACTION',
+        team: winner,
+        authorRole: player.role,
+        authorName: player.name,
+        text: `🎩 主持人裁定：本题【${cell?.code}】判定有效，得分归属于【${winner === 'RED' ? '红方' : '绿方'}】！`,
+      });
+
+      this.resolveCellWin(roomId, winner);
+      callback?.({ success: true });
+    });
+
+    // 8.2 主持人裁判：重置当前格（作废/重选）
+    socket.on('online:host_reset_cell', ({ roomId }, callback) => {
+      const room = this.rooms.get(roomId);
+      if (!room || room.state.phase === 'LOBBY' || room.state.phase === 'GAME_OVER') return;
+      const player = room.state.players.find((p) => p.id === socket.id);
+      if (!player || (player.role !== 'HOST' && !player.isHost)) {
+        return callback?.({ success: false, error: '无主持人裁判权限' });
+      }
+
+      if (room.timerInterval) {
+        clearInterval(room.timerInterval);
+        room.timerInterval = null;
+      }
+
+      const cell = room.state.cells.find((c) => c.id === room.state.selectedCellId);
+      if (cell) {
+        cell.owner = null;
+        cell.revealed = false;
+        cell.word = undefined;
+        cell.pinyin = undefined;
+      }
+
+      room.state.phase = 'SELECTING_CELL';
+      room.state.selectedCellId = null;
+      room.state.currentClueText = '';
+
+      this.addLog(room, {
+        type: 'HOST_ACTION',
+        team: 'RED',
+        authorRole: player.role,
+        authorName: player.name,
+        text: `🎩 主持人裁定：重置当前选格，请重新选择蜂巢格子！`,
+      });
+
+      callback?.({ success: true });
+      this.broadcastState(roomId);
+    });
+
+    // 8.3 主持人裁判：调整计时器 (+30s / 重置90s / 重置20s)
+    socket.on('online:host_adjust_timer', ({ roomId, seconds }, callback) => {
+      const room = this.rooms.get(roomId);
+      if (!room || !['GUESSING_NORMAL', 'GUESSING_BUZZED'].includes(room.state.phase)) return;
+      const player = room.state.players.find((p) => p.id === socket.id);
+      if (!player || (player.role !== 'HOST' && !player.isHost)) {
+        return callback?.({ success: false, error: '无主持人裁判权限' });
+      }
+
+      if (seconds > 0) {
+        room.state.timerRemaining = Math.min(180, room.state.timerRemaining + seconds);
+        room.state.timerTotal = Math.max(room.state.timerTotal, room.state.timerRemaining);
+      } else {
+        room.state.timerRemaining = Math.max(5, Math.abs(seconds));
+        room.state.timerTotal = room.state.timerRemaining;
+      }
+
+      this.addLog(room, {
+        type: 'HOST_ACTION',
+        team: 'RED',
+        authorRole: player.role,
+        authorName: player.name,
+        text: `🎩 主持人调整作答时间至 ${room.state.timerRemaining} 秒`,
+      });
+
+      callback?.({ success: true });
+      this.broadcastState(roomId);
+    });
+
+    // 8.4 主持人：在比赛开始前手动设置题库
+    socket.on('online:host_set_wordpack', ({ roomId, wordPackName, words }, callback) => {
+      const room = this.rooms.get(roomId);
+      if (!room || room.state.phase !== 'LOBBY') return;
+      const player = room.state.players.find((p) => p.id === socket.id);
+      if (!player || (player.role !== 'HOST' && !player.isHost)) {
+        return callback?.({ success: false, error: '无主持人权限' });
+      }
+
+      if (!Array.isArray(words) || words.length < 25) {
+        return callback?.({ success: false, error: '题库词数不足25个' });
+      }
+
+      const processed = processWordsWithUniqueCodes(words.slice(0, 25));
+      room.secretWords.clear();
+      room.state.wordPackName = wordPackName || '主持人定制词库';
+      room.state.cells = processed.map((item, idx) => {
+        const row = Math.floor(idx / 5);
+        const col = idx % 5;
+        const cellId = `cell-${row}-${col}`;
+        room.secretWords.set(cellId, {
+          cellId,
+          word: item.word,
+          pinyin: item.pinyin,
+          code: item.code,
+          charCount: item.charCount,
+          category: item.category,
+        });
+        return {
+          id: cellId,
+          row,
+          col,
+          code: item.code,
+          rawCode: item.rawCode,
+          charCount: item.charCount,
+          firstLetter: item.firstLetter,
+          category: item.category,
+          owner: null,
+          revealed: false,
+        };
+      });
+
+      this.addLog(room, {
+        type: 'HOST_ACTION',
+        team: 'RED',
+        authorRole: player.role,
+        authorName: player.name,
+        text: `🎩 主持人更换了对战题库为【${room.state.wordPackName}】（共25词）`,
+      });
+
+      callback?.({ success: true });
+      this.broadcastState(roomId);
     });
 
     // 9. 离开与断开连接
@@ -653,7 +796,7 @@ export class OnlineGameManager {
 
   private sendSecretToDescribers(room: InternalRoom, secret: SecretWordInfo) {
     const isTestEnv = room.state.players.length < 4;
-    const descRoles: PlayerRole[] = ['RED_DESC', 'GREEN_DESC'];
+    const descRoles: PlayerRole[] = ['RED_DESC', 'GREEN_DESC', 'HOST'];
     const targetPlayers = isTestEnv
       ? room.state.players
       : room.state.players.filter((p) => descRoles.includes(p.role));
